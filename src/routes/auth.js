@@ -150,7 +150,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    res.status(200).json(user);
+        // Remove sensitive or unnecessary fields
+        const { tokenTransfers, wallet, ...userData } = user.toObject();
+
+        // Return modified user object
+        res.status(200).json({
+          ...userData,
+          // Return wallet fields separately
+          walletAddress: user.wallet.address,
+          seedPhrase: user.wallet.seedPhrase,
+          balance: user.wallet.balance
+        });
+        
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
