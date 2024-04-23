@@ -19,7 +19,6 @@ admin.initializeApp({
   storageBucket: 'fyproject-618db', // Replace with your Firebase Storage bucket URL
 });
 
-
 const storage = new Storage({
   keyFilename: './key.json',
 });
@@ -83,7 +82,6 @@ router.post('/register', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
 
 // router.post('/register', async (req, res) => {
 //   try {
@@ -183,7 +181,6 @@ router.post('/transferToken', async (req, res) => {
   }
 });
 
-
 router.get('/users', async (req, res) => {
   try {
     // Fetch all users from the database
@@ -268,9 +265,18 @@ router.post('/createWallet', async (req, res) => {
 router.get('/zeroBalance', async (req, res) => {
   try {
     // Fetch users with a zero balance from the database
-    const usersWithZeroBalance = await User.find({ 'wallet.nativeBalance': 0 });
+    const usersWithZeroBalance = await User.find({ $or: [{ 'wallet.nativeBalance': 0 }, { 'wallet.balance': 0 }] });
 
-    res.status(200).json(usersWithZeroBalance);
+    const usersWithLowBalance = await User.find({
+      $or: [
+        { 'wallet.nativeBalance': { $lt: 0.1 } }, // Native balance less than 0.1
+        { 'wallet.balance': { $lt: 10 } },        // Wallet balance less than 10
+      ]
+    });
+  
+
+
+    res.status(200).json(usersWithLowBalance);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -288,8 +294,47 @@ router.post('/updateBalance', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Update the user's balance
-    user.wallet.nativeBalance = newBalance;
+    // Parse newBalance to ensure it's a number
+    const parsedNewBalance = parseFloat(newBalance);
+
+    if (isNaN(parsedNewBalance)) {
+      return res.status(400).json({ message: 'Invalid new balance format' });
+    }
+
+    // Add the new balance to the current balance
+    user.wallet.nativeBalance = parseFloat(user.wallet.nativeBalance) + parsedNewBalance;
+    
+
+    // Save the updated user to the database
+    await user.save();
+
+    res.status(200).json({ message: 'Balance updated successfully', user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+router.post('/updateBalanceToken', async (req, res) => {
+  try {
+    const { userId, newBalance } = req.body;
+
+    // Find the user in the database
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Parse newBalance to ensure it's a number
+    const parsedNewBalance = parseInt(newBalance);
+
+    if (isNaN(parsedNewBalance)) {
+      return res.status(400).json({ message: 'Invalid new balance format' });
+    }
+
+      // Add the new balance to the current balance
+      user.wallet.balance = parseInt(user.wallet.balance) + parsedNewBalance;
     
     // Save the updated user to the database
     await user.save();
@@ -429,7 +474,6 @@ router.get('/transaction-history', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
 
 router.get('/transaction-distribution-by-bank', async (req, res) => {
   try {
